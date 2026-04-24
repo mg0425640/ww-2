@@ -66,9 +66,15 @@ const NAME_MAP: Record<string, string> = {
 };
 
 function getProvinceRadius(type: Province['type']): number {
-  if (type === 'capital') return 7;
-  if (type === 'core') return 4.5;
-  return 3;
+  if (type === 'capital') return 6;
+  if (type === 'core') return 3.5;
+  return 2.5;
+}
+
+// Label font size based on zoom and province type
+function getLabelFontSize(type: Province['type'], zoom: number): number {
+  const base = type === 'capital' ? 5 : type === 'core' ? 4 : 3.5;
+  return base * Math.min(zoom, 2);
 }
 
 export function WorldMap({ countries, provinces, onSelectProvince, selectedProvince }: WorldMapProps) {
@@ -304,13 +310,16 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
           })}
         </g>
 
-        {/* Province dots */}
+        {/* Province markers with labels */}
         <g>
           {provinces.map((province) => {
             const [x, y] = latLngToXY(province.lat, province.lng);
             const country = countryById[province.country_id];
             const isSelected = selectedProvince?.id === province.id;
             const r = getProvinceRadius(province.type);
+            const color = isSelected ? '#f59e0b' : (country?.flag_color ?? '#4b5563');
+            const labelSize = getLabelFontSize(province.type, zoom);
+            const isCapital = province.type === 'capital';
 
             return (
               <g
@@ -320,22 +329,72 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
                 onMouseLeave={() => setTooltip(null)}
                 className="cursor-pointer"
               >
+                {/* Selection pulse ring */}
                 {isSelected && (
-                  <circle cx={x} cy={y} r={r + 4} fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0.7} filter="url(#glow)">
-                    <animate attributeName="r" values={`${r + 3};${r + 6};${r + 3}`} dur="1.5s" repeatCount="indefinite" />
+                  <circle cx={x} cy={y} r={r + 5} fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0.6} filter="url(#glow)">
+                    <animate attributeName="r" values={`${r + 4};${r + 8};${r + 4}`} dur="1.5s" repeatCount="indefinite" />
                   </circle>
                 )}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={r}
-                  fill={isSelected ? '#f59e0b' : country?.flag_color ?? '#4b5563'}
-                  stroke={isSelected ? '#f59e0b' : 'rgba(255,255,255,0.3)'}
-                  strokeWidth={isSelected ? 1.5 : 0.5}
-                />
-                {province.type === 'capital' && (
-                  <circle cx={x} cy={y} r={r * 0.35} fill="rgba(255,255,255,0.7)" />
+
+                {isCapital ? (
+                  /* Capital: double-dot — outer ring + inner filled circle */
+                  <>
+                    {/* Outer ring */}
+                    <circle
+                      cx={x} cy={y} r={r}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={isSelected ? 2 : 1.5}
+                    />
+                    {/* Inner filled dot */}
+                    <circle
+                      cx={x} cy={y} r={r * 0.48}
+                      fill={color}
+                      stroke="rgba(255,255,255,0.5)"
+                      strokeWidth={0.5}
+                    />
+                    {/* Star/cross tick marks at cardinal points for capital */}
+                    <line x1={x - r - 2} y1={y} x2={x - r + 1} y2={y} stroke={color} strokeWidth={1} opacity={0.8} />
+                    <line x1={x + r - 1} y1={y} x2={x + r + 2} y2={y} stroke={color} strokeWidth={1} opacity={0.8} />
+                    <line x1={x} y1={y - r - 2} x2={x} y2={y - r + 1} stroke={color} strokeWidth={1} opacity={0.8} />
+                    <line x1={x} y1={y + r - 1} x2={x} y2={y + r + 2} stroke={color} strokeWidth={1} opacity={0.8} />
+                  </>
+                ) : (
+                  /* Non-capital: crosshair point marker */
+                  <>
+                    {/* Outer thin ring */}
+                    <circle
+                      cx={x} cy={y} r={r}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={isSelected ? 1.5 : 0.8}
+                      opacity={0.7}
+                    />
+                    {/* Center point */}
+                    <circle
+                      cx={x} cy={y} r={isSelected ? 2 : 1.5}
+                      fill={color}
+                    />
+                  </>
                 )}
+
+                {/* Province name label */}
+                <text
+                  x={x}
+                  y={y + r + labelSize + 1}
+                  textAnchor="middle"
+                  dominantBaseline="hanging"
+                  fill={isSelected ? '#f59e0b' : (isCapital ? 'white' : 'rgba(255,255,255,0.75)')}
+                  fontSize={labelSize}
+                  fontWeight={isCapital ? '700' : '500'}
+                  fontFamily="system-ui, sans-serif"
+                  stroke="rgba(0,0,0,0.6)"
+                  strokeWidth={isCapital ? 3 : 2}
+                  paintOrder="stroke"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {province.name}
+                </text>
               </g>
             );
           })}
@@ -371,9 +430,16 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-gray-900/90 border border-gray-700 rounded-lg p-3 text-xs text-gray-300 space-y-1.5 backdrop-blur-sm">
         <div className="text-gray-400 font-semibold mb-2 uppercase tracking-wider text-[10px]">Legend</div>
-        <LegendItem color="#f59e0b" size={7} label="Capital" />
-        <LegendItem color="#6b7280" size={4.5} label="Core" />
-        <LegendItem color="#374151" size={3} label="Peripheral" />
+        {/* Capital double-dot */}
+        <div className="flex items-center gap-2">
+          <svg width={16} height={16}>
+            <circle cx={8} cy={8} r={6} fill="none" stroke="#f59e0b" strokeWidth={1.5} />
+            <circle cx={8} cy={8} r={2.8} fill="#f59e0b" />
+          </svg>
+          <span>Capital</span>
+        </div>
+        <LegendItem color="#6b7280" size={3.5} label="Core Province" />
+        <LegendItem color="#374151" size={2.5} label="Peripheral" />
         <div className="border-t border-gray-700 pt-2 mt-2">
           <div className="flex items-center gap-2">
             <div className="w-4 h-3 rounded-sm bg-amber-500/40 border border-amber-500/60" />
@@ -393,7 +459,8 @@ function LegendItem({ color, size, label }: { color: string; size: number; label
   return (
     <div className="flex items-center gap-2">
       <svg width={16} height={16}>
-        <circle cx={8} cy={8} r={size} fill={color} />
+        <circle cx={8} cy={8} r={size} fill="none" stroke={color} strokeWidth={0.8} opacity={0.7} />
+        <circle cx={8} cy={8} r={1.5} fill={color} />
       </svg>
       <span>{label}</span>
     </div>
