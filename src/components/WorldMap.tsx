@@ -77,6 +77,17 @@ function getLabelFontSize(type: Province['type'], zoom: number): number {
   return base * Math.min(zoom, 2);
 }
 
+// Get resource emoji
+function getResourceEmoji(resourceType: string): string {
+  const emojis: Record<string, string> = {
+    food: '🌾',
+    oil: '🛢️',
+    steel: '⚙️',
+    money: '💰',
+  };
+  return emojis[resourceType] || '📦';
+}
+
 export function WorldMap({ countries, provinces, onSelectProvince, selectedProvince }: WorldMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState(`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`);
@@ -126,9 +137,12 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
   }, [vbX, vbY, vbW, vbH]);
 
   const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom((z) => Math.min(8, Math.max(1, z * delta)));
+    const target = e.target as SVGElement;
+    if (target.closest('svg')) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoom((z) => Math.min(8, Math.max(1, z * delta)));
+    }
   }, []);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -240,6 +254,7 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
                 stroke={strokeColor}
                 strokeWidth={strokeWidth}
                 strokeLinejoin="round"
+                strokeDasharray={isGameCountry ? 'none' : '2,2'}
                 onMouseEnter={() => {
                   if (isGameCountry) setHoveredCountry((country as Country).id);
                 }}
@@ -378,7 +393,7 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
                   </>
                 )}
 
-                {/* Province name label */}
+                {/* Province name and resource emoji */}
                 <text
                   x={x}
                   y={y + r + labelSize + 1}
@@ -394,6 +409,18 @@ export function WorldMap({ countries, provinces, onSelectProvince, selectedProvi
                   style={{ pointerEvents: 'none' }}
                 >
                   {province.name}
+                </text>
+
+                {/* Resource emoji */}
+                <text
+                  x={x + (province.name.length * labelSize * 0.25)}
+                  y={y + r + labelSize + 1}
+                  textAnchor="start"
+                  dominantBaseline="hanging"
+                  fontSize={labelSize * 1.2}
+                  style={{ pointerEvents: 'none', marginLeft: '2px' }}
+                >
+                  {getResourceEmoji(province.resource_type)}
                 </text>
               </g>
             );
